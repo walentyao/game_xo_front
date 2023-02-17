@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-+0n0xVW2eSR5OomGNYDnhzAbDsOXxcvSN1TPprVMTNDbiYZCxYbOOl7+AMvyTG2x" crossorigin="anonymous">
+    <link rel="stylesheet" href="style.css">
+
+    <script type="text/javascript" src="FragmentBoard.js"></script>
+    <title>Крестики-нолики</title>
+</head>
+<body class="position-relative">
+<div class="position-relative" id="global-container">
+    <div id="nav-board"
+         class="container d-flex justify-content-center mt-5 mb-5">
+        <div class="d-flex align-items-center">
+            <label class="fs-3 pe-2 ">Ваш символ :</label>
+        </div>
+        <select id="select-symbol" class="form-select w-80 fs-3 text-center me-2">
+            <option value="o" selected>
+                o
+            </option>
+            <option value="x">
+                x
+            </option>
+        </select>
+        <div class="d-flex align-items-center">
+            <label class="fs-3 pe-2 ">Ваш ход :</label>
+        </div>
+        <select id="select-hod" class="form-select w-120px fs-3 text-center me-2">
+            <option value="player" selected>
+                1-ый
+            </option>
+            <option value="bot">
+                2-ый
+            </option>
+        </select>
+        <button type="button" class="btn btn-success " id="button_start">Старт</button>
+    </div>
+    <div class="container max-width d-none"
+         id="container_xo">
+        <div class="row" id="row-1"></div>
+        <div class="row" id="row-2"></div>
+        <div class="row" id="row-3"></div>
+    </div>
+</div>
+<div id="end_game" class="container position-absolute end d-none d-flex align-items-center ">
+    <div class="m-auto">
+        <div id="message" class="fs-3 text-center"></div>
+        <div class="mx mt-5 m-auto">
+            <button type="button" class="btn btn-success " id="button">Ещё раз!</button>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+<script>
+    const container_elements = document.getElementById('container_xo');
+    const socket = new WebSocket('ws://localhost:8000');
+    const selectSymbol = document.getElementById('select-symbol');
+    const arrFragmentBoard = [];
+    let symbol = 'o';
+    let hod = 'player'
+    const command = ['0', '1', '2', '3', '4', '5', '6', '7', '8'];
+    const endGame = document.getElementById('end_game');
+    const messageGame = document.getElementById('message');
+    const button = document.getElementById('button');
+    const globalContainer = document.getElementById('global-container');
+    const buttonStart = document.getElementById('button_start')
+    const selectHod = document.getElementById('select-hod')
+
+    function panelEndGame(message) {
+        globalContainer.classList.add('hide');
+        endGame.classList.remove('d-none');
+        messageGame.textContent = message;
+    }
+
+    buttonStart.addEventListener('click', (event) =>{
+       container_elements.classList.remove('d-none');
+       socket.send('play');
+       socket.send(hod);
+       selectHod.disabled = true;
+       selectSymbol.disabled = true;
+    });
+
+    selectSymbol.addEventListener('change', function (event) {
+        symbol = event.target.value;
+    });
+
+    selectHod.addEventListener('change', function (event) {
+        hod = event.target.value;
+    });
+
+    let index = 0;
+    for (let element of container_elements.children) {
+        for (let i = 0; i < 3; i++) {
+            arrFragmentBoard.push(new FragmentBoard(element, index));
+            index++;
+        }
+    }
+
+    for (let element of arrFragmentBoard) {
+        element.element.addEventListener('click', function (event) {
+            if (!(event.target.classList.contains('x') || event.target.classList.contains('o'))) {
+                event.target.classList.add(symbol);
+            }
+        });
+    }
+
+    // socket.addEventListener('open', function (event) {
+    //     socket.send('Connection Established');
+    // });
+
+    socket.addEventListener('close', function (event) {
+        socket.send('disconnected');
+    });
+
+    button.addEventListener('click', function (event) {
+        globalContainer.classList.remove('hide');
+        endGame.classList.add('d-none');
+        socket.send('new_game');
+        for (let element of arrFragmentBoard) {
+            element.deleteClass('x');
+            element.deleteClass('o');
+        }
+        selectHod.disabled = false;
+        selectSymbol.disabled = false;
+    });
+
+    socket.addEventListener('message', function (event) {
+        if (event.data in command) {
+            if (symbol === 'o') {
+                arrFragmentBoard[Number.parseInt(event.data)].addClass('x');
+            } else {
+                arrFragmentBoard[Number.parseInt(event.data)].addClass('o');
+            }
+        } else {
+            switch (event.data) {
+                case 'yuo_loose':
+                    panelEndGame('ТЕБЯ СДЕЛАЛ БОТ ! LOOOSER!');
+                    break;
+                case 'you_win':
+                    panelEndGame('ТЫ ЧЁ, ТОЖЕ РОБОТ ? o_O');
+                    break;
+                case 'neutral':
+                    panelEndGame('ТЫ ТАКОЙ ЖЕ КАК БОТ! ВЫ ОБА СЛАБЫЕ...');
+                    break;
+            }
+        }
+    });
+</script>
